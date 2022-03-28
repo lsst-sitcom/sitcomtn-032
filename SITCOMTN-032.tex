@@ -3,6 +3,11 @@
 \input{meta}
 
 % Package imports go here.
+\usepackage{xspace}
+
+% Local commands go here.
+\renewcommand{\eg}{\textit{e.g.}\xspace}
+% Package imports go here.
 
 % Local commands go here.
 
@@ -36,9 +41,8 @@ How we define visits and use them in pipeline code and notebooks is changing wit
 % Fields: VERSION, DATE, DESCRIPTION, OWNER NAME.
 % See LPM-51 for version number policy.
 \setDocChangeRecord{%
-  \addtohist{1}{YYYY-MM-DD}{Unreleased.}{Robert Lupton}
+  \addtohist{1}{2022-03-28}{Initial Version.}{Robert Lupton}
 }
-
 
 \begin{document}
 
@@ -49,6 +53,67 @@ How we define visits and use them in pipeline code and notebooks is changing wit
 
 % ADD CONTENT HERE
 % You can also use the \input command to include several content files.
+
+\section{Introduction}
+
+The LSST defines exposures by the tuple \texttt{(instr, controller, dayObs, seqNum)},\footnote{
+  Which are referred to as \texttt{(instr, controller, day\_obs, seq\_num)} in the butler
+  (\eg \texttt{(AT, C, 2022-03-28, 666)}).}
+When we take snaps (back-to-back exposures which will
+be combined early in the DM processing), they are assigned sequential values of \texttt{seqNum}.
+
+Rubin also has the concept of a \textit{visit}, which is used to express two distinct concepts:
+\begin{itemize}
+\item
+  These data maps to a point on the sky (as opposed to \eg a flat field exposure)
+\item
+  These data were taken as snaps, and the visit is the identifier for the combined data
+\end{itemize}
+While logically distinct, Jim Bosch and the middleware group prefers to use visit to mean
+\textit{both} of these,
+as it avoids repeated ``does this visit map to a region of the sky?'' tests.
+
+\section{Changes Proposed in (DM) \href{https://jira.lsstcorp.org/browse/RFC-836}{RFC-863}}
+
+Most users of Rubin data will not care whether or not the data is taken using snaps, and
+there are significant types of data taken on sky that are not taken as snaps; for example, intra-/extra-focal
+pairs of images taken to analyze the state of the optics.
+
+RFC-836 therefore proposes simplifying the current visit system:
+\begin{itemize}
+\item
+  All exposures, whether consisting of snaps or not, may be referred to by their first
+  \texttt{seqNum} without any need for the user to explicitly define a visit.
+\item
+  Visits must consist of exactly one or two snaps.
+\item
+  \texttt{groupId}s may not be used to define visits, but there will be selecting
+  exposures identified by a \texttt{group\_id}, in much the same way that one can filter on an
+  exposure type.  We expect that external tools will use this information to generate
+  lists of exposures to be processed.
+\end{itemize}
+
+The restriction to one or two snaps allows us to simplify the
+processing of snaps --- they are only used when the two snaps may be considered as part
+of a single interrupted exposure. For \eg Deep Drilling Fields (DDFs) where we may take tens
+or even hundreds of exposures, each image is assigned a separate visit.
+
+We anticipate that \texttt{groupId}s \textit{will} be used to define groups of \eg flat field
+exposures that should be handled together, or a series of exposures taken in a DDF.  
+
+\subsection{Metadata and the EFD}
+
+The snaps within a visit are identified by 1-indexed keywords \texttt{CURINDEX} and \texttt{MAXINDEX},
+which correspond to EFD names \texttt{imageIndex} and \texttt{imagesInSequence} respectively.
+
+\subsection{Butler Access to Snaps}
+
+Once this work is completed (expected to be \textit{c.} mid-April 2022) users will be able to use
+\texttt{(day\_obs, seq\_num)} to refer to data whether it's a single exposure or a visit
+(in which case \texttt{seq\_num} will be the first of the pair of snaps, if two snaps were taken), but
+this means that we will need to add special syntax to access the first of the snaps (the second is easy,
+as its \texttt{seq\_num} cannot be confused with a visit identifier), \eg
+\texttt{(day\_obs, seq\_num, snap)} with \texttt{snap=1,2}.  The details are not yet decided.
 
 \appendix
 % Include all the relevant bib files.
