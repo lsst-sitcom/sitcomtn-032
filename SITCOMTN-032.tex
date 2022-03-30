@@ -56,9 +56,9 @@ How we define visits and use them in pipeline code and notebooks is changing wit
 
 \section{Introduction}
 
-The LSST defines exposures by the tuple \texttt{(instr, controller, dayObs, seqNum)},\footnote{
-  Which are referred to as \texttt{(instr, controller, day\_obs, seq\_num)} in the butler
-  (\eg \texttt{(AT, C, 2022-03-28, 666)}).}
+The LSST defines exposures by the tuple \texttt{(instr, controller, dayObs, seqNum)} (which are referred to
+as \texttt{(instr, controller, day\_obs, seq\_num)} in the butler (\eg \texttt{(AT, C, 2022-03-28, 666)});
+see Sec. \label{sec:imageIdentifiers} for an explanation.
 When we take snaps (back-to-back exposures which will
 be combined early in the DM processing), they are assigned sequential values of \texttt{seqNum}.
 
@@ -99,7 +99,9 @@ of a single interrupted exposure. For \eg Deep Drilling Fields (DDFs) where we m
 or even hundreds of exposures, each image is assigned a separate visit.
 
 We anticipate that \texttt{groupId}s \textit{will} be used to define groups of \eg flat field
-exposures that should be handled together, or a series of exposures taken in a DDF.  
+exposures that should be handled together, or a series of exposures taken in a DDF.  If you
+want to use \texttt{takeImages} with $N > 2$ this information will be stored in the butler's
+exposure record, but the butler will not define a visit.
 
 \subsection{Metadata and the EFD}
 
@@ -115,6 +117,77 @@ this means that we will need to add special syntax to access the first of the sn
 as its \texttt{seq\_num} cannot be confused with a visit identifier), \eg
 \texttt{(day\_obs, seq\_num, snap)} with \texttt{snap=1,2}.  The details are not yet decided.
 
+\section{Image identifiers}
+\label{sec:imageIdentifiers}
+
+Due to a feature in \texttt{postgres}, whereby it converts non-quoted text to lower case although
+it supports case-sensitive schema, the butler maps camel-case names (`\texttt{dateObs}') to snake-case
+names (`\texttt{date\_obs}').  This
+document does not always follow this convention, as names in ICDs have been specified using
+the former convention.  Caveat Lector.
+
+\begin{description}
+  \item[projectedVisitId]
+    A unique identifier issued by the Scheduler that identifies a science visit
+    (composed of one or two exposures taken with a single takeImages command)
+    that is planned to be taken within N hours (N < 100).
+
+  \item[nextVisitId]
+    A unique identifier, expected to be timestamp-based, that identifies an
+    exposure or visit (science or calibration) that is about to be taken within
+    N seconds (N < 100).
+
+  \item[groupId]
+    A unique identifier, expected to be timestamp-based, that identifies a
+    single execution (past, present, or future) of a script in the Script
+    Queue.  The script may contain multiple takeImages commands.  May be used
+    as the nextVisitId if there is only one takeImages command.
+
+  \item[subGroupId]
+    A unique identifier, derived from the groupId, that identifies a
+    particular execution of a takeImages command in a script in the Script
+    Queue.  May be used as the nextVisitId if it is available early enough.
+
+  \item[snapId]
+    Either 0 or 1.  When a two-image, on-sky, same-pointing, science visit
+    is taken using the takeImages command, the first exposure is snapId 0 and
+    the second is snapId 1.  No other uses of the takeImages command result in
+    snaps.
+
+  \item[dayObs]
+    A natural number representing the observation day (in timezone UTC-12:00)
+    when the takeImages command began executing.  Does not change during a
+    takeImages command, but may change during a script.
+
+  \item[seqNum]
+    A non-negative integer representing the number of exposures taken so far
+    during this observation day.  Some sequence numbers may be missing if
+    exposures are aborted or cause errors/faults.  It is guaranteed that
+    the seqNums associated with a single takeImages command are sequential.
+
+  \item[exposureId]
+    A unique identifier, composed of multiple fields, including the dayObs and
+    seqNum.  It does not include the nextVisitId, groupId, subGroupId, or
+    snapId.
+
+  \item[firstImageId]
+    A non-negative integer representing the seqNum of the first image taken by
+    a given takeImages command.
+
+  \item[lastImageId]
+    A non-negative integer representing the seqNum of the last image taken (or
+    to be taken) by a given takeImages command.
+
+  \item[visitId]
+    A unique identifier identical to the exposureId of a visit where the seqNum
+    is equal to the firstImageId or, equivalently, the snapId is 0.
+\end{description}
+
+
+%------------------------------------------------------------------------------
+
+
+
 \appendix
 % Include all the relevant bib files.
 % https://lsst-texmf.lsst.io/lsstdoc.html#bibliographies
@@ -127,9 +200,5 @@ as its \texttt{seq\_num} cannot be confused with a visit identifier), \eg
 \input{acronyms.tex}
 % If you want glossary uncomment below -- comment out the two lines above
 %\printglossaries
-
-
-
-
 
 \end{document}
